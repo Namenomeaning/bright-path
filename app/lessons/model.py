@@ -1,9 +1,10 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from enum import StrEnum
 
 from sqlalchemy import CheckConstraint, ForeignKey, Index, JSON, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.config import TIMEZONE
 from app.core.db import Base, LocalDateTime, enum_column
 from app.rooms.model import Room
 from app.students.model import Student
@@ -54,6 +55,14 @@ class Lesson(Base):
     changes: Mapped[list["LessonChange"]] = relationship(
         order_by="LessonChange.changed_at, LessonChange.id", lazy="raise"
     )
+
+    @property
+    def starts_at(self) -> datetime:
+        return datetime.combine(self.date, self.start_time, TIMEZONE)
+
+    @property
+    def ends_at(self) -> datetime:
+        return self.starts_at + timedelta(minutes=self.duration_min)
 
 
 class LessonStudent(Base):
