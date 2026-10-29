@@ -53,24 +53,24 @@ I send questions 1 to 4 first. Until the owner answers, I use the assumptions be
 
 ### Features this tool needs
 
-1. Day view: the lessons of one day, by tutor and room.
+1. Schedule: the lessons of one day, by tutor and room.
 2. Cancellation: cancel a lesson or mark a no-show, with who and why.
 3. Move: change the day or time of a lesson and keep the original.
 4. Conflict checks: reject a student, tutor or room in two places.
 5. Tutor cap warning: more than 6 lessons in a day, saved with a reason.
 6. Waitlist: tell the next family when a slot opens.
 
-### Pick: cancellation and the day view
+### Pick: cancellation and the schedule
 
-The day view shows a cancellation as a change when it happens after the 16:00 cut-off. It also shows a no-show. The tutor and the owner see what changed without a message.
+The schedule shows a cancellation as a change when it happens after the 16:00 cut-off. It also shows a no-show. The tutor and the owner see what changed without a message.
 
-A cancellation before the cut-off is stored, but the view does not mark it. The tutor never saw that lesson, so it just leaves the day. The view compares the time of the cancellation with the cut-off and stores nothing extra.
+A cancellation before the cut-off is stored, but the schedule does not mark it. The tutor never saw that lesson, so it just leaves the day. The schedule compares the time of the cancellation with the cut-off and stores nothing extra.
 
 Anyone can view any day at any time. A day is "draft" before its cut-off and "final" after it.
 
 Why this first: it reaches all three roles.
 
-- The day view serves everyone. The owner wants to "see today, not scroll". The tutor wants one reliable message for the day. Mai builds that day by hand every morning.
+- The schedule serves everyone. The owner wants to "see today, not scroll". The tutor wants one reliable message for the day. Mai builds that day by hand every morning.
 - Cancellation is the shared pain of the tutor and Mai. The tutor drove in twice for called-off lessons. Mai fixes the sheet the next morning. L017 was cancelled 80 minutes before the start, after the cut-off.
 - Mai's cancellation rules (late, no-show, who cancelled) live in her head. The tool writes them down.
 
@@ -161,7 +161,7 @@ The API requires `cancelled_by`. The seed leaves it empty, because the export ha
 
 The `lesson` row holds the current state. The `lesson_change` row holds what happened and when. A move saves the old values in its change row, so the original survives. L032 lost its original.
 
-The day view decides what "after the tutor was told" means. It compares `changed_at` with the cut-off of the lesson's day. The database stores no flag for it.
+The schedule decides what "after the tutor was told" means. It compares `changed_at` with the cut-off of the lesson's day. The database stores no flag for it.
 
 ### Where each rule lives
 
@@ -186,9 +186,9 @@ Derived values:
 - **After the cut-off:** `changed_at` is later than the cut-off of the lesson's day.
 - **Late:** a family cancellation 4 hours or less before the start. It is `null` for any other change.
 
-#### `GET /days/{date}`
+#### `GET /schedule/{date}`
 
-Returns the lessons of one day. Any day can be requested at any time. The optional `tutor_id` parameter limits the result to one tutor.
+Returns the schedule of one day. Any day can be requested at any time. The optional `tutor_id` parameter limits the result to one tutor.
 
 The list has every `booked` and `no_show` lesson. It also has every `cancelled` lesson whose cancellation came after the cut-off. A lesson cancelled before the cut-off is left out, because the tutor never saw it. Lessons are sorted by `start_time`.
 
@@ -258,9 +258,9 @@ The README holds the commands. With the default clock (2026-03-06 at 07:00), a r
 
 | Step | Result |
 | --- | --- |
-| `GET /days/2026-03-05` | The day is `final`. L015 shows as a no-show and L017 as cancelled after the cut-off, with the note "tutor sick". |
-| `GET /days/2026-03-03` | L005 shows as cancelled after the cut-off. The cut-off of Tuesday is Sunday 16:00, because Monday is closed. |
-| `GET /days/2026-03-04` | The exam pair shows once, with two students. L007 and L008 both appear, with no flag. |
-| `POST /lessons/L018/cancel` with `cancelled_by` | The lesson returns with a `change`. `GET /days/2026-03-06` shows it as a change. |
+| `GET /schedule/2026-03-05` | The day is `final`. L015 shows as a no-show and L017 as cancelled after the cut-off, with the note "tutor sick". |
+| `GET /schedule/2026-03-03` | L005 shows as cancelled after the cut-off. The cut-off of Tuesday is Sunday 16:00, because Monday is closed. |
+| `GET /schedule/2026-03-04` | The exam pair shows once, with two students. L007 and L008 both appear, with no flag. |
+| `POST /lessons/L018/cancel` with `cancelled_by` | The lesson returns with a `change`. `GET /schedule/2026-03-06` shows it as a change. |
 | `POST /lessons/L018/cancel` again | `409 not_booked`. |
 | `POST /lessons/L019/no-show` | `409 lesson_not_started`, because the lesson starts at 09:00. With `BRIGHT_PATH_NOW` set to 10:00 it succeeds. |
