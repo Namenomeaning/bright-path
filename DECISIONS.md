@@ -29,18 +29,18 @@ Mentioned, but not a pain: scale (the export has 3 tutors and 34 lessons), prici
 | 2 | Is the cap of 6 a block, or a warning with a recorded reason? | Block: a database constraint. Warning: an override record on the owner's view. |
 | 3 | What does "told" mean: the 16:00 publication or Mai's 07:00 message? | Sets the point after which an edit shows as a change. |
 | 4 | Who can cancel: the family, the tutor or the centre (storm, room closed)? Does a late cancellation free the slot? | Adds `cancelled_by` and a note. Only a family cancellation inside 4 hours is charged. |
-| 5 | What are the exact lesson hours? Is Monday closed without exception? | Hours are config. Yes: Monday is a block. No: Monday is a warning. |
+| 5 | What are the exact lesson hours? Which days is the centre closed, and does that change? Is a closed day closed without exception? | Hours and closed days are settings. Yes: a lesson on a closed day is a block. No: it is a warning. |
 
 I send questions 1 to 4 first. Until the owner answers, I use the assumptions below.
 
 ### Assumptions
 
 - The receptionist reads and edits. The owner and tutors only read. The tool does not send WhatsApp messages.
-- Lessons start at 09:00 or later, end by 21:30 and last 60 or 90 minutes. The centre is closed on Monday.
+- Lessons start at 09:00 or later, end by 21:30 and last 60 or 90 minutes. The centre is closed on Monday. `closed_weekdays` is a setting: a list of weekday names, for example `["monday", "sunday"]`. It can change and can hold more than one.
 - A student can learn any subject with any tutor.
 - A lesson has a capacity: 1 for a normal lesson, 2 for an exam pair, more later. Students are participants.
 - Rule, not enforced in this build: a student, a tutor or a room is never in two overlapping active lessons.
-- Warnings, saved with a reason: more than 6 lessons for a tutor in a day, and a lesson on a Monday.
+- Warnings, saved with a reason: more than 6 lessons for a tutor in a day, and a lesson on a closed day.
 - A cancelled lesson occupies nothing and does not count toward the cap. A no-show does both. Mai can mark a no-show only after the start. Charging is out of scope.
 - A pair counts as 1 lesson toward the cap.
 - A cancellation records who cancelled (family, tutor or centre) and a note. A family cancellation 4 hours or less before the start is late. Times are Asia/Ho_Chi_Minh.
@@ -169,7 +169,7 @@ The schedule decides what "after the tutor was told" means. It compares `changed
 | --- | --- | --- |
 | Duration is 60 or 90. Status, kind and `cancelled_by` have fixed values. `cancelled_by` only on a cancellation. At most one cancellation or no-show for each lesson. A lesson has a real tutor and room. | Database | These checks are cheap. Nobody overrides them. |
 | Draft or final. After the cut-off. Late cancellation. | Code, derived | A stored value goes stale. |
-| No overlap for a student, tutor or room. More than 6 lessons for a tutor in a day. A lesson on a Monday. Lesson hours. Students within capacity. | Not built | The tool cannot create or move a lesson. Mai can override some of them, and question 5 is open. |
+| No overlap for a student, tutor or room. More than 6 lessons for a tutor in a day. A lesson on a closed day. Lesson hours. Students within capacity. | Not built | The tool cannot create or move a lesson. Mai can override some of them, and question 5 is open. |
 
 When booking comes, the overlap rule goes in the database first, because the API and the seed both write.
 
@@ -181,7 +181,7 @@ An error returns `{"error": {"code": "...", "message": "..."}}`.
 
 Derived values:
 
-- **Cut-off of a day:** 16:00 on the previous open day. Skip Monday. The cut-off of Tuesday is Sunday 16:00.
+- **Cut-off of a day:** 16:00 on the previous open day. Skip each closed day. The cut-off of Tuesday is Sunday 16:00 while Monday is the only closed day.
 - **State of a day:** `final` at or after the cut-off. Otherwise `draft`.
 - **After the cut-off:** `changed_at` is later than the cut-off of the lesson's day.
 - **Late:** a family cancellation 4 hours or less before the start. It is `null` for any other change.
