@@ -124,7 +124,8 @@ tutor 1 --- * lesson * --- 1 room
 | Column | Type | Notes |
 | --- | --- | --- |
 | `id` | TEXT | Primary key. The export `lesson_id`, for example `L001`. |
-| `date`, `start_time` | TEXT | Not null. |
+| `date` | DATE | Not null. |
+| `start_time` | TIME | Not null. |
 | `duration_min` | INTEGER | Not null. 60 or 90. |
 | `tutor_id` | TEXT | Not null. References `tutor`. |
 | `room_id` | TEXT | Not null. References `room`. |
@@ -150,10 +151,10 @@ The primary key is `(lesson_id, student_id)`.
 | `id` | INTEGER | Primary key. |
 | `lesson_id` | TEXT | Not null. References `lesson`. |
 | `kind` | TEXT | `cancelled`, `no_show` or `moved`. |
-| `changed_at` | TEXT | Not null. |
+| `changed_at` | DATETIME | Not null. Stored as local time and read back with the `+07:00` offset. |
 | `cancelled_by` | TEXT | `family`, `tutor` or `centre`. Only when `kind` is `cancelled`. |
 | `note` | TEXT | Free text. |
-| `old_values` | TEXT | JSON. The old day, time, tutor and room of a move. |
+| `old_values` | JSON | The old day, time, tutor and room of a move. |
 
 The API requires `cancelled_by`. The seed leaves it empty, because the export has no such column, and the tool does not infer it from the note. A lesson has at most one `cancelled` or `no_show` row.
 
