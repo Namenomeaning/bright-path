@@ -36,7 +36,7 @@ I send 1 to 4 first. The rest use the assumptions below.
 ### Assumptions
 
 - The receptionist reads and edits. The owner and tutors read only. The tool does not send WhatsApp messages.
-- Lessons start at 09:00 or later, end by 21:30, last 60 or 90 minutes, and never run on Monday.
+- Lessons start at 09:00 or later, end by 21:30, and last 60 or 90 minutes. The centre is closed on Monday.
 - A student can learn any subject with any tutor.
 - A lesson has a capacity: 1 for a normal lesson, 2 for an exam pair, more later. Students are participants.
 - Hard rules: a student, a tutor or a room is never in two overlapping active lessons.
@@ -48,3 +48,34 @@ I send 1 to 4 first. The rest use the assumptions below.
 - A student is identified by name.
 - "Today" is pinned to 2026-03-06, the busiest day in the export.
 - The seed has 2 real conflicts (L007/L008, L033/L034). They load flagged as `needs_review`, not resolved: Mai decides, not the owner.
+
+## 2. What to build
+
+### Features this tool needs
+
+1. Day view: today's lessons by tutor and room.
+2. Cancellation: cancel a lesson or mark a no-show, with who and why.
+3. Move: change a lesson's day or time without losing the original.
+4. Conflict checks: reject a student, tutor or room in two places.
+5. Tutor cap warning: more than 6 lessons in a day, saved with a reason.
+6. Waitlist: tell the next family when a slot opens.
+
+### Pick: cancellation and the day view
+
+A cancelled lesson shows on the day view as a change when it happens after the 16:00 cut-off. A no-show shows too. The tutor and the owner see what changed without reading messages. A cancellation before the cut-off is stored but not shown as a change: the tutor was never told the lesson, so it just drops off the day. The view compares `cancelled_at` with the cut-off and stores nothing extra. Any day can be viewed at any time. Before its cut-off a day is labelled "draft", after it "final".
+
+Why this first: it reaches all three roles.
+
+- The day view serves everyone. The owner wants to "see today, not scroll", the tutor wants one reliable message for the day, and Mai builds that day by hand every morning.
+- Cancellation is the shared pain of the tutor and Mai. The tutor drove in twice for called-off lessons, and Mai fixes the sheet the next morning. L017 was cancelled 80 minutes before start, after the cut-off.
+- Mai's cancellation rules (late, no-show, who cancelled) live in her head. The tool writes them down.
+
+Why the rest wait:
+
+- Move is the same change record with a different type. The schema holds it. There is no endpoint.
+- Conflict checks are database constraints that come with the schema. They are not the feature.
+- The cap warning: one row in the export breaks it (T1 on 03-06).
+- Waitlist: the export has no data on waiting families.
+- Not built: sending messages, booking new lessons, charging, login.
+
+What breaks by choosing this: a lesson can't be booked or moved in the tool, so the seed is the only source of lessons.
