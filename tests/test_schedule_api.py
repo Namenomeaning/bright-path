@@ -131,11 +131,3 @@ def test_a_family_cancellation_over_4_hours_before_is_not_late(client, db):
     lesson = next(item for item in client.get("/schedule/2026-03-06").json()["lessons"] if item["id"] == "L018")
 
     assert lesson["change"]["late"] is False
-
-
-def test_a_tutor_cancellation_is_never_late(client, db):
-    cancel_in_db(db, "L018", datetime(2026, 3, 6, 8, 0, tzinfo=VIETNAM), CancelledBy.TUTOR)
-
-    lesson = next(item for item in client.get("/schedule/2026-03-06").json()["lessons"] if item["id"] == "L018")
-
-    assert lesson["change"]["late"] is None

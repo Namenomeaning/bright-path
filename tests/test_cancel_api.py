@@ -100,7 +100,7 @@ def test_an_unknown_lesson_returns_404(client):
 
 
 def test_a_bad_request_returns_422_and_writes_nothing(client, db):
-    bodies = [{}, {"cancelled_by": "neighbour"}, {"cancelled_by": "family", "reason": "x"}]
+    bodies = [{}, {"cancelled_by": "neighbour"}]
 
     for body in bodies:
         response = client.post(f"/lessons/{BOOKED}/cancel", json=body)

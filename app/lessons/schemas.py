@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 from app.lessons.model import CancelledBy, ChangeKind, Lesson, LessonChange, LessonStatus
 from app.students.schemas import StudentRead
@@ -68,7 +68,5 @@ def closing_change(lesson: Lesson) -> LessonChange | None:
 
 
 class CancelRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
     cancelled_by: CancelledBy
     note: str | None = None

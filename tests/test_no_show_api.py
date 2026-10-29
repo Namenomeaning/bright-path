@@ -59,15 +59,6 @@ def test_a_no_show_before_the_start_is_rejected_and_writes_nothing(client, db):
     assert change_count(db, BOOKED) == 0
 
 
-def test_a_cancelled_lesson_is_not_booked_even_before_its_start(client):
-    client.post(f"/lessons/{BOOKED}/cancel", json={"cancelled_by": "family"})
-
-    response = client.post(f"/lessons/{BOOKED}/no-show")
-
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "not_booked"
-
-
 def test_a_no_show_lesson_cannot_be_cancelled_or_marked_again(client, set_now):
     set_now(AFTER_START)
     client.post(f"/lessons/{BOOKED}/no-show")

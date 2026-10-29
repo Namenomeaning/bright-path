@@ -6,7 +6,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.config import TIMEZONE
 from app.core.db import Base, LocalDateTime, enum_column
-from app.rooms.model import Room
 from app.students.model import Student
 from app.tutors.model import Tutor
 
@@ -36,7 +35,6 @@ class Lesson(Base):
     __table_args__ = (
         CheckConstraint("duration_min IN (60, 90)", name="lesson_duration"),
         CheckConstraint("capacity >= 1", name="lesson_capacity"),
-        Index("ix_lesson_date_tutor", "date", "tutor_id"),
     )
 
     id: Mapped[str] = mapped_column(primary_key=True)
@@ -50,7 +48,6 @@ class Lesson(Base):
     note: Mapped[str | None] = mapped_column(Text)
 
     tutor: Mapped[Tutor] = relationship(lazy="raise")
-    room: Mapped[Room] = relationship(lazy="raise")
     students: Mapped[list[Student]] = relationship(secondary="lesson_student", lazy="raise")
     changes: Mapped[list["LessonChange"]] = relationship(
         order_by="LessonChange.changed_at, LessonChange.id", lazy="raise"

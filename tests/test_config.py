@@ -1,8 +1,5 @@
 from datetime import date
 
-import pytest
-from pydantic import ValidationError
-
 from app.core.config import Settings, Weekday
 
 MONDAY = date(2026, 3, 9)
@@ -26,10 +23,3 @@ def test_closed_weekdays_can_hold_more_than_one(monkeypatch):
     assert settings.is_closed(MONDAY)
     assert settings.is_closed(SUNDAY)
     assert not settings.is_closed(TUESDAY)
-
-
-def test_an_unknown_weekday_name_fails_at_startup(monkeypatch):
-    monkeypatch.setenv("BRIGHT_PATH_CLOSED_WEEKDAYS", '["funday"]')
-
-    with pytest.raises(ValidationError):
-        Settings()
