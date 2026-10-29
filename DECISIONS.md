@@ -28,7 +28,7 @@ Mentioned, but not a pain: scale (the export has 3 tutors and 34 lessons), prici
 | 1 | Is an exam pair one lesson with two students? Who may set it up? | Yes: lesson capacity and participants. No: an override on a normal collision. |
 | 2 | Is the cap of 6 a block, or a warning with a recorded reason? | Block: a database constraint. Warning: an override record on the owner's view. |
 | 3 | What does "told" mean: the 16:00 publication or Mai's 07:00 message? | Sets the point after which an edit shows as a change. |
-| 4 | Who can cancel: the family, the tutor or the centre (storm, room closed)? Does a late cancellation free the slot? | Adds `cancelled_by` and a note. Only a family cancellation inside 4 hours is charged. |
+| 4 | Who can cancel: the family, the tutor or the centre (storm, room closed)? Does a late cancellation free the slot? Is a family report after the start a late cancellation or a no-show? | Adds `cancelled_by` and a note. Only a family cancellation with less than 4 hours of notice is charged. Sets which endpoint Mai uses after the start. |
 | 5 | What are the exact lesson hours? Which days is the centre closed, and does that change? Is a closed day closed without exception? | Hours and closed days are settings. Yes: a lesson on a closed day is a block. No: it is a warning. |
 
 I send questions 1 to 4 first. Until the owner answers, I use the assumptions below.
@@ -43,7 +43,7 @@ I send questions 1 to 4 first. Until the owner answers, I use the assumptions be
 - Warnings, saved with a reason: more than 6 lessons for a tutor in a day, and a lesson on a closed day.
 - A cancelled lesson occupies nothing and does not count toward the cap. A no-show does both. Mai can mark a no-show only after the start. Charging is out of scope.
 - A pair counts as 1 lesson toward the cap.
-- A cancellation records who cancelled (family, tutor or centre) and a note. A family cancellation 4 hours or less before the start is late. Times are Asia/Ho_Chi_Minh.
+- A cancellation records who cancelled (family, tutor or centre) and a note. A family cancellation with less than 4 hours of notice is late. Exactly 4 hours of notice is still free, because the brief says "free of charge up to 4 hours before". A cancellation after the start has negative notice, so it is late. Times are Asia/Ho_Chi_Minh.
 - A day's schedule is final at 16:00 on the previous open day. Tuesday's schedule is final on Sunday at 16:00.
 - The tool identifies a student by name.
 - "Today" is 2026-03-06, the busiest day in the export.
@@ -178,14 +178,16 @@ When booking comes, the overlap rule goes in the database first, because the API
 
 The tool reads the current time from `BRIGHT_PATH_NOW`. The default is `2026-03-06T07:00:00+07:00`.
 
-An error returns `{"error": {"code": "...", "message": "..."}}`.
+An error returns `{"error": {"code": "...", "message": "..."}}`. Besides the codes below, an unknown path returns `not_found`, any other HTTP error returns `http_error`, and an unexpected failure returns `internal_error` with status 500.
+
+`BRIGHT_PATH_DB` is the SQLite file. The default is `bright_path.db`.
 
 Derived values:
 
 - **Cut-off of a day:** 16:00 on the previous open day. Skip each closed day. The cut-off of Tuesday is Sunday 16:00 while Monday is the only closed day.
 - **State of a day:** `final` at or after the cut-off. Otherwise `draft`.
 - **After the cut-off:** `changed_at` is later than the cut-off of the lesson's day.
-- **Late:** a family cancellation 4 hours or less before the start. It is `null` for any other change.
+- **Late:** a family cancellation with less than 4 hours of notice. Exactly 4 hours is not late. It is `null` for any other change.
 
 #### `GET /schedule/{date}`
 
@@ -265,3 +267,39 @@ The README holds the commands. With the default clock (2026-03-06 at 07:00), a r
 | `POST /lessons/L018/cancel` with `cancelled_by` | The lesson returns with a `change`. `GET /schedule/2026-03-06` shows it as a change. |
 | `POST /lessons/L018/cancel` again | `409 not_booked`. |
 | `POST /lessons/L019/no-show` | `409 lesson_not_started`, because the lesson starts at 09:00. With `BRIGHT_PATH_NOW` set to 10:00 it succeeds. |
+
+## 4. Reflection
+
+### What I would build next
+
+1. Booking and moving a lesson. The overlap rule goes in the database first (a student, a tutor or a room never in two lessons), with a list of the 2 conflicts in the seed for Mai to resolve.
+2. A `received_at` time on cancel. Today `changed_at` is the time Mai types the cancellation. A family that calls at night is entered the next morning, so the tool can call a cancellation late when it was not.
+3. Login with roles. Only the receptionist writes.
+4. The warnings that are not built: more than 6 lessons for a tutor in a day, and a lesson on a closed day, each saved with a reason.
+5. A record that the tutor saw a change. The tool shows the change, but nobody knows if the tutor read it. This is the tutor's real pain.
+6. The owner's answers to questions 1 to 5.
+
+### What I know is weak
+
+- There is no login. Anyone who reaches the API can cancel a lesson. The assumption that the owner and the tutors only read is not enforced.
+- `changed_at` is the entry time, not the time the family called. See next step 2.
+- "Told" means the 16:00 cut-off. Question 3 has no answer, so the marker may not match what tutors saw in Mai's 07:00 messages.
+- Four readings are mine: a late cancellation is less than 4 hours of notice, the cut-off of Tuesday is Sunday 16:00, an exam pair is two rows with the same tutor, room and start, and a no-show in the seed happened at the lesson start.
+- A student is identified by name. Two students with the same name would merge.
+- After the start, a family report can be a late cancellation or a no-show. The tool accepts both and has no rule. Question 4 asks the owner.
+- The tests check my reading of the rules, not the owner's. I checked the steps in the README by hand against the running server.
+- A cancelled lesson with no change row leaves the schedule. The seed and the API cannot create one.
+- One SQLite file and one clock setting for all requests.
+
+### Where the AI assistant helped
+
+- It read the PDF and checked the export with a script against every rule. This found L007 with L008, L033 with L034, the 7 lessons of T1 on 03-06, L032 on a Monday, and the notice of L005 and L017.
+- It drafted this file, the first schema and API, the FastAPI structure from the blog, and the tests.
+- I chose the scope (cancellation and the schedule), the closed weekdays as a list, the name `schedule`, and the cuts: overlap enforcement and the status `needs_review`.
+- The assistant added things I had not asked for, and I had to catch them. I dropped `needs_review`. I kept the `lesson.note` column and the rule of one cancellation or no-show for each lesson, because both protect real data.
+
+### A suggestion I threw away
+
+The assistant proposed to fill `cancelled_by` in the seed from the export note: "tutor sick" gives `tutor`, any other cancellation gives `family`. I said no.
+
+I was right because `cancelled_by` decides who pays. A family cancellation with less than 4 hours of notice is charged. A guess from free text would look like a real record in that field, and nobody could tell the two apart. The field stays empty on seed rows, and the note stays in the change row where a person can read it. The cost is that `late` is `null` for every seed row.
