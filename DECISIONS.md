@@ -1,53 +1,55 @@
 # Decisions
 
+**Summary.** Bright Path is a tutoring centre that runs on a shared spreadsheet and WhatsApp. Its tutors learn about cancellations too late. I built one feature. A receptionist cancels a lesson or marks a no-show. Anyone can then open the schedule of a day and see what changed after it became final at 16:00 the day before. It runs on Python, FastAPI and SQLite. [README.md](README.md) has the commands. Phase 4 lists what is not built.
+
 ## 1. Reading the situation
 
 ### What hurts
 
-- **Changes reach tutors too late.** The tutor drove in twice for lessons that were already called off. Mai fixes the sheet the next morning. L017 was cancelled 80 minutes before it started. L032 says "moved from Sunday", but no Sunday row exists for that student. The move overwrote the original.
-- **Double-booking.** L007 and L008 put one student with two tutors in the same slot. L033 and L034 put one tutor in two rooms in the same slot.
-- **No "today" view.** The owner wants to open the laptop and see today.
-- **The rules are in Mai's head.** She leaves in 8 weeks.
+- **Changes reach tutors too late.** A tutor drove in twice for lessons already called off. The receptionist fixes the spreadsheet the next morning, after the tutor has left. One cancellation in the export came 80 minutes before the lesson. A moved lesson overwrote the original, so its history is gone.
+- **Double-booking.** The export has a student booked with two tutors at the same time, and a tutor booked in two rooms at the same time. The owner says the system must never allow this.
+- **No quick view of today.** The owner wants to open the laptop and see today without scrolling.
+- **The rules live in the receptionist's head.** She is the only person who understands the sheet, and she goes on leave in 8 weeks.
 
-Mentioned, but not a pain: scale (the export has 3 tutors and 34 lessons), pricing, WhatsApp, a waitlist and tutor pay.
+Only mentioned, not a pain: the size of the centre, pricing, WhatsApp, a waitlist, and tutor pay.
 
-### Where the brief contradicts itself
+### Where the brief argues with itself
 
-- The owner says "if the system allows it, the system is broken". Mai double-books exam pairs on purpose. I read a pair as one group lesson, not a collision (L009, L010).
-- The owner wants the cap of 6 lessons enforced. Mai breaks it when she is desperate. T1 has 7 lessons on Fri 03-06.
-- A late cancellation is charged in full and the tutor is paid. It also frees the slot.
-- The schedule is final at 16:00 the day before, but Mai messages tutors at 07:00 on the day. Which one means "told"?
-- The centre is closed on Monday, but L032 is on a Monday.
-- The centre has 12 tutors and 6 rooms, so rooms should be scarce. The export has 3 tutors with one room each, so it cannot show a room conflict.
-- The rules table has no rule for a student in two places. This is the owner's first example.
+| Conflict | Reading I chose |
+| --- | --- |
+| The owner says the system must never allow a double-booking. The receptionist double-books exam pairs on purpose, and the families like it. | An exam pair is one lesson with two students. It is not a collision. |
+| The owner wants the limit of 6 lessons a day for a tutor enforced. The receptionist breaks it when desperate. One tutor has 7 lessons on one day in the export. | The limit is a warning that saves a reason. |
+| A late cancellation is charged in full and the tutor is paid. It also frees the room and the slot. | The family pays, and the slot is free. Question 4 asks the owner if it can be rebooked. |
+| The schedule is final at 16:00 the day before. The receptionist also messages each tutor at 07:00 on the day. | A tutor is "told" at the 16:00 cut-off. |
+| The centre is closed on Monday, but the export has one lesson on a Monday. | A lesson on a closed day is a warning, because exceptions happen. |
+| The centre has 12 tutors and 6 rooms, so rooms should be scarce. The export has 3 tutors with one room each. | The export cannot show a room conflict. I did not model room scarcity. |
+| The rules table has no rule for a student in two places, but this is the owner's first example. | It is a hard rule. |
 
 ### Questions for the owner
 
 | # | Question | Effect of the answer |
 | --- | --- | --- |
-| 1 | Is an exam pair one lesson with two students? Who may set it up? | Yes: lesson capacity and participants. No: an override on a normal collision. |
-| 2 | Is the cap of 6 a block, or a warning with a recorded reason? | Block: a database constraint. Warning: an override record on the owner's view. |
-| 3 | What does "told" mean: the 16:00 publication or Mai's 07:00 message? | Sets the point after which an edit shows as a change. |
-| 4 | Who can cancel: the family, the tutor or the centre (storm, room closed)? Does a late cancellation free the slot? Is a family report after the start a late cancellation or a no-show? | Adds `cancelled_by` and a note. Only a family cancellation with less than 4 hours of notice is charged. Sets which endpoint Mai uses after the start. |
-| 5 | What are the exact lesson hours? Which days is the centre closed, and does that change? Is a closed day closed without exception? | Hours and closed days are settings. Yes: a lesson on a closed day is a block. No: it is a warning. |
+| 1 | Is an exam pair one lesson with two students? Who may set it up? | Yes: a lesson has a capacity and a list of students. No: a pair is an override of a normal collision. |
+| 2 | Is the limit of 6 lessons a block, or a warning with a recorded reason? | Block: a database constraint. Warning: an override record that the owner can see. |
+| 3 | What does "told" mean: the 16:00 cut-off or the 07:00 message? | Sets the point after which an edit shows as a change. |
+| 4 | Who can cancel: the family, the tutor or the centre (storm, room closed)? Does a late cancellation free the slot? Is a family message after the start a late cancellation or a no-show? | Adds who cancelled and a note. Only a family cancellation with less than 4 hours of notice is charged. Decides which action the receptionist uses after the start. |
+| 5 | What are the exact lesson hours? Which days is the centre closed, and does that change? Is a closed day closed without exception? | Closed weekdays are a setting. Yes: a lesson on a closed day is a block. No: it is a warning. |
 
-I send questions 1 to 4 first. Until the owner answers, I use the assumptions below.
+Questions 1 to 4 go first. Until the owner answers, the assumptions below apply.
 
 ### Assumptions
 
-- The receptionist reads and edits. The owner and tutors only read. The tool does not send WhatsApp messages.
-- Lessons start at 09:00 or later, end by 21:30 and last 60 or 90 minutes. The centre is closed on Monday. `closed_weekdays` is a setting: a list of weekday names, for example `["monday", "sunday"]`. It can change and can hold more than one.
-- A student can learn any subject with any tutor.
-- A lesson has a capacity: 1 for a normal lesson, 2 for an exam pair, more later. Students are participants.
-- Rule, not enforced in this build: a student, a tutor or a room is never in two overlapping active lessons.
-- Warnings, saved with a reason: more than 6 lessons for a tutor in a day, and a lesson on a closed day.
-- A cancelled lesson occupies nothing and does not count toward the cap. A no-show does both. Mai can mark a no-show only after the start. Charging is out of scope.
-- A pair counts as 1 lesson toward the cap.
-- A cancellation records who cancelled (family, tutor or centre) and a note. A family cancellation with less than 4 hours of notice is late. Exactly 4 hours of notice is still free, because the brief says "free of charge up to 4 hours before". A cancellation after the start has negative notice, so it is late. Times are Asia/Ho_Chi_Minh.
-- A day's schedule is final at 16:00 on the previous open day. Tuesday's schedule is final on Sunday at 16:00.
-- The tool identifies a student by name.
-- "Today" is 2026-03-06, the busiest day in the export.
-- The seed has 2 real conflicts (L007 with L008, and L033 with L034). They load as they are, unresolved. The README reports them. Mai decides, not the owner.
+- The receptionist reads and edits. The owner and the tutors only read. The tool does not send WhatsApp messages.
+- Lessons last 60 or 90 minutes and run from 09:00 to 21:30. A student can learn any subject with any tutor.
+- The centre is closed on Monday. The closed weekdays are a setting: a list of weekday names, for example `["monday", "sunday"]`.
+- A lesson has a capacity: 1 for a normal lesson, 2 for an exam pair, more later. The tool identifies a student by name.
+- Hard rule: a student, a tutor or a room is never in two overlapping lessons.
+- Warnings save a reason. They cover more than 6 lessons for a tutor in a day, and a lesson on a closed day or outside the hours. A pair counts as 1 lesson. A cancelled lesson does not count. A no-show does.
+- A cancelled lesson occupies nothing. The receptionist can mark a no-show only after the start. Charging is out of scope.
+- A cancellation records who cancelled (family, tutor or centre) and a note. A family cancellation with less than 4 hours of notice is late. Exactly 4 hours is free, because the brief says "free of charge up to 4 hours before". A cancellation after the start has negative notice, so it is late.
+- A day's schedule is final at 16:00 on the previous open day. Tuesday's schedule is final on Sunday at 16:00, because Monday is closed.
+- Times are Asia/Ho_Chi_Minh. The default "now" is 2026-03-06 07:00, a day inside the week of the export.
+- The export contains two clashes: a student with two tutors at once, and a tutor in two rooms at once. They load as they are. The receptionist decides what is true, not the owner.
 
 ## 2. What to build
 
@@ -57,110 +59,89 @@ I send questions 1 to 4 first. Until the owner answers, I use the assumptions be
 2. Cancellation: cancel a lesson or mark a no-show, with who and why.
 3. Move: change the day or time of a lesson and keep the original.
 4. Conflict checks: reject a student, tutor or room in two places.
-5. Tutor cap warning: more than 6 lessons in a day, saved with a reason.
+5. Tutor limit warning: more than 6 lessons in a day, saved with a reason.
 6. Waitlist: tell the next family when a slot opens.
 
 ### Pick: cancellation and the schedule
 
-The schedule shows a cancellation as a change when it happens after the 16:00 cut-off. It also shows a no-show. The tutor and the owner see what changed without a message.
+The schedule shows a cancellation or a no-show as a change when it happens after the 16:00 cut-off. The tutor and the owner see what changed without a message. A cancellation before the cut-off is stored, but the schedule leaves the lesson out, because the tutor never saw it. Anyone can view any day. A day is "draft" before its cut-off and "final" after it.
 
-A cancellation before the cut-off is stored, but the schedule does not mark it. The tutor never saw that lesson, so it just leaves the day. The schedule compares the time of the cancellation with the cut-off and stores nothing extra.
+Why it comes first: it reaches all three roles.
 
-Anyone can view any day at any time. A day is "draft" before its cut-off and "final" after it.
-
-Why this first: it reaches all three roles.
-
-- The schedule serves everyone. The owner wants to "see today, not scroll". The tutor wants one reliable message for the day. Mai builds that day by hand every morning.
-- Cancellation is the shared pain of the tutor and Mai. The tutor drove in twice for called-off lessons. Mai fixes the sheet the next morning. L017 was cancelled 80 minutes before the start, after the cut-off.
-- Mai's cancellation rules (late, no-show, who cancelled) live in her head. The tool writes them down.
+- The schedule serves everyone. The owner wants to "see today, not scroll". The tutor wants one reliable message for the day. The receptionist builds that day by hand every morning.
+- Cancellation is the shared pain of the tutor and the receptionist.
+- The cancellation rules (late, no-show, who cancelled) live in the receptionist's head. The tool writes them down.
 
 Why the rest wait:
 
-- Move is the same change record with a different kind. The schema holds it. There is no endpoint.
-- Conflict checks: not built. The tool cannot create a lesson, so it cannot create a conflict. The seed has two.
-- Cap warning: one day in the export breaks it (T1 on 03-06).
+- Move: the data model holds it, but there is no endpoint.
+- Conflict checks: the tool cannot create a lesson, so it cannot create a conflict.
+- Tutor limit warning: one day in the export breaks it.
 - Waitlist: the export has no data on waiting families.
-- Not built: messages, new bookings, charging, login.
 
-The cost of this choice: nobody can book or move a lesson in the tool. The seed is the only source of lessons.
+What I leave broken: nobody can book or move a lesson in the tool. The export is the only source of lessons. There are also no messages, no charging and no login.
 
 ## 3. Design
 
-SQLite, FastAPI, Python and uv. Dates are `YYYY-MM-DD`. Times are `HH:MM` local time (Asia/Ho_Chi_Minh). A timestamp is ISO 8601 with the `+07:00` offset.
+SQLite, FastAPI, Python and uv. Dates are `YYYY-MM-DD`. Times are `HH:MM` local time. A timestamp is ISO 8601 with the `+07:00` offset.
 
 ### Database
 
-```text
-tutor 1 --- * lesson * --- 1 room
-                |
-                +--- * lesson_student * --- 1 student
-                |
-                +--- * lesson_change
+```mermaid
+erDiagram
+    tutor ||--o{ lesson : teaches
+    room ||--o{ lesson : hosts
+    lesson ||--|{ lesson_student : has
+    student ||--o{ lesson_student : joins
+    lesson ||--o{ lesson_change : logs
+
+    tutor {
+        text id PK
+        text name
+        text subject
+        text phone
+    }
+    room {
+        text id PK "the seed adds R1 to R6"
+        text name
+    }
+    student {
+        int id PK
+        text name UK
+    }
+    lesson {
+        text id PK "the export id, for example L001"
+        date date
+        time start_time
+        int duration_min "60 or 90"
+        text tutor_id FK
+        text room_id FK
+        int capacity "1 or more, default 1"
+        text status "booked, cancelled, no_show"
+        text note "the export note"
+    }
+    lesson_student {
+        text lesson_id PK, FK
+        int student_id PK, FK
+    }
+    lesson_change {
+        int id PK
+        text lesson_id FK
+        text kind "cancelled, no_show, moved"
+        datetime changed_at "local time, read with +07:00"
+        text cancelled_by "family, tutor, centre"
+        text note
+        json old_values "a move: old date, time, tutor, room"
+    }
 ```
 
-**`tutor`** stores the details of a tutor.
+- `lesson` holds the current state only. A `booked` or `no_show` lesson occupies its room and slot. A `cancelled` lesson occupies nothing.
+- An exam pair is one `lesson` with two `lesson_student` rows.
+- `lesson_change` is an append-only log. The code never updates or deletes a row.
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | TEXT | Primary key, for example `T1`. |
-| `name`, `subject`, `phone` | TEXT | Not null. |
+### A change after the tutor was told
 
-**`room`** stores the rooms a lesson can use. The seed adds R1 to R6.
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | TEXT | Primary key, for example `R1`. |
-| `name` | TEXT | Not null. |
-
-**`student`** stores the details of a student. The tool identifies a student by name.
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | INTEGER | Primary key. |
-| `name` | TEXT | Not null, unique. |
-
-**`lesson`** is one lesson in one slot. It holds the current state only.
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | TEXT | Primary key. The export `lesson_id`, for example `L001`. |
-| `date` | DATE | Not null. |
-| `start_time` | TIME | Not null. |
-| `duration_min` | INTEGER | Not null. 60 or 90. |
-| `tutor_id` | TEXT | Not null. References `tutor`. |
-| `room_id` | TEXT | Not null. References `room`. |
-| `capacity` | INTEGER | Not null, 1 or more. Default 1. |
-| `status` | TEXT | `booked` (default), `cancelled` or `no_show`. |
-| `note` | TEXT | The export note of a row that is not cancelled. |
-
-A `booked` or `no_show` lesson occupies its room and slot. A `cancelled` lesson occupies nothing.
-
-**`lesson_student`** lists the students in a lesson. An exam pair is one lesson with two rows.
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| `lesson_id` | TEXT | References `lesson`. |
-| `student_id` | INTEGER | References `student`. |
-
-The primary key is `(lesson_id, student_id)`.
-
-**`lesson_change`** is an append-only log. The code never updates or deletes a row.
-
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | INTEGER | Primary key. |
-| `lesson_id` | TEXT | Not null. References `lesson`. |
-| `kind` | TEXT | `cancelled`, `no_show` or `moved`. |
-| `changed_at` | DATETIME | Not null. Stored as local time and read back with the `+07:00` offset. |
-| `cancelled_by` | TEXT | `family`, `tutor` or `centre`. Only when `kind` is `cancelled`. |
-| `note` | TEXT | Free text. |
-| `old_values` | JSON | The old day, time, tutor and room of a move. |
-
-The API requires `cancelled_by`. The seed leaves it empty, because the export has no such column, and the tool does not infer it from the note. A lesson has at most one `cancelled` or `no_show` row.
-
-### How a change is stored
-
-The `lesson` row holds the current state. The `lesson_change` row holds what happened and when. A move saves the old values in its change row, so the original survives. L032 lost its original.
+The `lesson` row holds the current state. The `lesson_change` row holds what happened and when. A move saves the old date, time, tutor and room in `old_values`, so the original survives. The spreadsheet lost it.
 
 The schedule decides what "after the tutor was told" means. It compares `changed_at` with the cut-off of the lesson's day. The database stores no flag for it.
 
@@ -168,32 +149,32 @@ The schedule decides what "after the tutor was told" means. It compares `changed
 
 | Rule | Where | Why |
 | --- | --- | --- |
-| Duration is 60 or 90. Status, kind and `cancelled_by` have fixed values. `cancelled_by` only on a cancellation. At most one cancellation or no-show for each lesson. A lesson has a real tutor and room. | Database | These checks are cheap. Nobody overrides them. |
+| Duration is 60 or 90. Capacity is 1 or more. Status, kind and `cancelled_by` have fixed values. `cancelled_by` only on a cancellation. At most one cancellation or no-show for each lesson. A lesson has a real tutor and room. | Database | These checks are cheap. Nobody overrides them. |
 | Draft or final. After the cut-off. Late cancellation. | Code, derived | A stored value goes stale. |
-| No overlap for a student, tutor or room. More than 6 lessons for a tutor in a day. A lesson on a closed day. Lesson hours. Students within capacity. | Not built | The tool cannot create or move a lesson. Mai can override some of them, and question 5 is open. |
+| No overlap for a student, tutor or room. More than 6 lessons for a tutor in a day. A lesson on a closed day or outside the hours. Students within capacity. | Not built | The tool cannot create or move a lesson. The receptionist can override some of them. |
 
 When booking comes, the overlap rule goes in the database first, because the API and the seed both write.
 
 ### API
 
-The tool reads the current time from `BRIGHT_PATH_NOW`. The default is `2026-03-06T07:00:00+07:00`.
+| Endpoint | What it does | Errors |
+| --- | --- | --- |
+| `GET /schedule/{date}?tutor_id=` | Returns the lessons of one day, with the state of the day, its cut-off, and the changes. `tutor_id` is optional. | 404 `tutor_not_found`, 422 `invalid_request` |
+| `POST /lessons/{id}/cancel` | Cancels a booked lesson at any time. Body: `cancelled_by` (required), `note`. | 404 `lesson_not_found`, 409 `not_booked`, 422 `invalid_request` |
+| `POST /lessons/{id}/no-show` | Marks a booked lesson as a no-show. It needs no body. | 404 `lesson_not_found`, 409 `not_booked`, 409 `lesson_not_started` |
 
-An error returns `{"error": {"code": "...", "message": "..."}}`. Besides the codes below, an unknown path returns `not_found`, any other HTTP error returns `http_error`, and an unexpected failure returns `internal_error` with status 500.
+Both `POST` requests run in one transaction. They set the status and add one change row, or they write nothing. They return the lesson. A cancelled or no-show lesson cannot change again.
 
-`BRIGHT_PATH_DB` is the SQLite file. The default is `bright_path.db`.
+An error returns `{"error": {"code": "...", "message": "..."}}`. An unknown path returns `not_found`, any other HTTP error returns `http_error`, and an unexpected failure returns `internal_error` with status 500.
 
-Derived values:
+The tool reads the current time from `BRIGHT_PATH_NOW` (default `2026-03-06T07:00:00+07:00`). `BRIGHT_PATH_DB` is the SQLite file (default `bright_path.db`).
 
-- **Cut-off of a day:** 16:00 on the previous open day. Skip each closed day. The cut-off of Tuesday is Sunday 16:00 while Monday is the only closed day.
-- **State of a day:** `final` at or after the cut-off. Otherwise `draft`.
-- **After the cut-off:** `changed_at` is later than the cut-off of the lesson's day.
-- **Late:** a family cancellation with less than 4 hours of notice. Exactly 4 hours is not late. It is `null` for any other change.
+How the schedule works:
 
-#### `GET /schedule/{date}`
-
-Returns the schedule of one day. Any day can be requested at any time. The optional `tutor_id` parameter limits the result to one tutor.
-
-The list has every `booked` and `no_show` lesson. It also has every `cancelled` lesson whose cancellation came after the cut-off. A lesson cancelled before the cut-off is left out, because the tutor never saw it. Lessons are sorted by `start_time`.
+- **Cut-off of a day:** 16:00 on the previous open day. It skips each closed day.
+- **State:** `final` at or after the cut-off. Otherwise `draft`.
+- **Lessons listed:** every `booked` and `no_show` lesson, and every `cancelled` lesson whose cancellation came after the cut-off. They are sorted by start time.
+- **Late:** `true` for a family cancellation with less than 4 hours of notice. `null` for any other change.
 
 ```json
 {
@@ -221,85 +202,75 @@ The list has every `booked` and `no_show` lesson. It also has every `cancelled` 
 }
 ```
 
-A person is an object with `id` and `name`. A room is its `id` string. `change` is `null` when the lesson has no cancellation or no-show. Errors: `404 tutor_not_found`, `422 invalid_request`.
+`change` is `null` for a lesson with no cancellation or no-show.
 
-#### `POST /lessons/{id}/cancel`
-
-Cancels a `booked` lesson at any time.
-
-```json
-{"cancelled_by": "family", "note": "family called"}
-```
-
-`cancelled_by` is required. `note` is optional. In one transaction the server sets the status to `cancelled` and adds a change row with the current time. It returns the lesson, in the same shape as above.
-
-Errors: `404 lesson_not_found`, `409 not_booked`, `422 invalid_request`.
-
-#### `POST /lessons/{id}/no-show`
-
-Marks a `booked` lesson as a no-show. There is no body. In one transaction the server sets the status to `no_show` and adds a change row with the current time. It returns the lesson.
-
-Errors: `404 lesson_not_found`, `409 not_booked`, `409 lesson_not_started` (the lesson has not started).
+**Rejected: `DELETE /lessons/{id}`.** A delete erases what the tutor was told. This is how the spreadsheet lost the original of a moved lesson. A lesson is cancelled, never deleted.
 
 Cancel and no-show are two endpoints because their rules differ. A cancellation can come at any time, needs `cancelled_by` and frees the room and slot. A no-show comes only after the start, has no `cancelled_by` and frees nothing.
 
-**Rejected: `DELETE /lessons/{id}`.** A delete erases what the tutor was told. This is how L032 lost its original row. A lesson is cancelled, never deleted.
-
 ### Seed
 
-The seed reads `data/tutors.csv` and `data/lessons_export.csv`. It numbers students in order of first appearance. Running it again resets the database.
+`uv run python -m scripts.seed` reads `data/`. It resets the database each time.
 
-- 34 export rows give 33 lessons. L009 and L010 become one lesson `L009` with capacity 2 and two students.
-- A cancelled row becomes a `cancelled` change row. `changed_at` is the export `cancelled_at`, `note` is the export note, and `cancelled_by` stays empty.
-- The export has no time for the no-show row (L015). Its change row uses the start time of the lesson, the earliest moment Mai can mark a no-show.
+- The two export rows of an exam pair (same tutor, room and start, note "exam pair - half price") become one lesson with capacity 2.
+- A cancelled row becomes a change row. Its time and note come from the export. `cancelled_by` stays empty. The export has no such column, and I do not guess it from the note.
+- The export has no time for its one no-show. The change uses the start time of the lesson.
 - Any other export note stays in `lesson.note`.
-- The 2 real conflicts (L007 with L008, L033 with L034) and L032 (Monday) load as they are. The tool does not detect or flag them.
-
-### What a reviewer sees
-
-The README holds the commands. With the default clock (2026-03-06 at 07:00), a reviewer can check the feature in six steps.
-
-| Step | Result |
-| --- | --- |
-| `GET /schedule/2026-03-05` | The day is `final`. L015 shows as a no-show and L017 as cancelled after the cut-off, with the note "tutor sick". |
-| `GET /schedule/2026-03-03` | L005 shows as cancelled after the cut-off. The cut-off of Tuesday is Sunday 16:00, because Monday is closed. |
-| `GET /schedule/2026-03-04` | The exam pair shows once, with two students. L007 and L008 both appear, with no flag. |
-| `POST /lessons/L018/cancel` with `cancelled_by` | The lesson returns with a `change`. `GET /schedule/2026-03-06` shows it as a change. |
-| `POST /lessons/L018/cancel` again | `409 not_booked`. |
-| `POST /lessons/L019/no-show` | `409 lesson_not_started`, because the lesson starts at 09:00. With `BRIGHT_PATH_NOW` set to 10:00 it succeeds. |
+- The two clashes and the lesson on a Monday load as they are. The tool does not detect or flag them.
 
 ## 4. Reflection
 
+### What I built and what I did not
+
+I built cancellation, no-show and the schedule of a day. The data model has six tables with database rules, and a seed loads the export.
+
+I did not build booking or moving a lesson, so the export is the only source of lessons. I also did not build the checks that need booking: no double-booking, the limit of lessons for a tutor, and closed days. There is no login, no message to tutors and no charging.
+
+### Time spent
+
+About 2 hours 10 minutes, from 09:00 to 11:11 on 2026-10-29. This is inside the limit of 2.5 hours.
+
 ### What I would build next
 
-1. Booking and moving a lesson. The overlap rule goes in the database first (a student, a tutor or a room never in two lessons), with a list of the 2 conflicts in the seed for Mai to resolve.
-2. A `received_at` time on cancel. Today `changed_at` is the time Mai types the cancellation. A family that calls at night is entered the next morning, so the tool can call a cancellation late when it was not.
-3. Login with roles. Only the receptionist writes.
-4. The warnings that are not built: more than 6 lessons for a tutor in a day, and a lesson on a closed day, each saved with a reason.
-5. A record that the tutor saw a change. The tool shows the change, but nobody knows if the tutor read it. This is the tutor's real pain.
-6. The owner's answers to questions 1 to 5.
+1. **Booking, with double-booking blocked in the database.** The owner says: "if the system allows it, the system is broken." Booking is the first feature that can create a clash. The rule goes in the database with it. The receptionist also needs a list of the clashes already in the data.
+2. **Record when the family called.** Today the tool stores the time the receptionist types the cancellation. A family that calls at night and is entered the next morning looks like a short-notice cancellation. The late flag is then wrong.
+3. **Show if the tutor saw a change.** The tool shows a change but cannot tell if the tutor read it. This is the main complaint of the tutors.
+4. **Login with roles.** Only the receptionist edits.
+5. **The two warnings:** too many lessons for a tutor in a day, and a lesson on a closed day.
+6. **Moving a lesson.** The data model already holds a move.
 
 ### What I know is weak
 
-- There is no login. Anyone who reaches the API can cancel a lesson. The assumption that the owner and the tutors only read is not enforced.
-- `changed_at` is the entry time, not the time the family called. See next step 2.
-- "Told" means the 16:00 cut-off. Question 3 has no answer, so the marker may not match what tutors saw in Mai's 07:00 messages.
-- Four readings are mine: a late cancellation is less than 4 hours of notice, the cut-off of Tuesday is Sunday 16:00, an exam pair is two rows with the same tutor, room and start, and a no-show in the seed happened at the lesson start.
-- A student is identified by name. Two students with the same name would merge.
-- After the start, a family report can be a late cancellation or a no-show. The tool accepts both and has no rule. Question 4 asks the owner.
-- The tests check my reading of the rules, not the owner's. I checked the steps in the README by hand against the running server.
-- A cancelled lesson with no change row leaves the schedule. The seed and the API cannot create one.
-- One SQLite file and one clock setting for all requests.
+Protection that is missing:
+
+- There is no login. Anyone who can reach the API can cancel a lesson. The brief says only the receptionist edits, and the tool does not enforce it.
+- Nothing stops or flags a double-booking. The sample data already contains two. They load as they are and show on the schedule without a warning.
+- The tool marks a cancellation as late when the family gave less than 4 hours of notice, so staff can charge for it. It does not work out or record any charge.
+
+Readings that the owner has not confirmed:
+
+- A tutor counts as "told" at the 16:00 cut-off. The receptionist also messages tutors at 07:00 on the day.
+- A family message after the lesson started is either a late cancellation or a no-show. The tool accepts both and has no rule.
+- Two export rows with the same tutor, room and start time are one exam pair.
+
+Limits of the data and the code:
+
+- The time of a change is the time of entry, not the time the family called.
+- The tool identifies a student by name. Two students with the same name would merge.
+- The export has no time for a no-show and does not say who cancelled. I used the lesson start time for the first and left the second empty, because a guess would look like a real record. The late flag is therefore unknown for every cancellation in the sample data.
+- A change made at exactly 16:00:00 does not show as a change, although the day is final at that moment.
+- The tests check my reading of the rules, not the owner's. I checked the README steps by hand against the running server.
 
 ### Where the AI assistant helped
 
-- It read the PDF and checked the export with a script against every rule. This found L007 with L008, L033 with L034, the 7 lessons of T1 on 03-06, L032 on a Monday, and the notice of L005 and L017.
-- It drafted this file, the first schema and API, the FastAPI structure from the blog, and the tests.
-- I chose the scope (cancellation and the schedule), the closed weekdays as a list, the name `schedule`, and the cuts: overlap enforcement and the status `needs_review`.
-- The assistant added things I had not asked for, and I had to catch them. I dropped `needs_review`. I kept the `lesson.note` column and the rule of one cancellation or no-show for each lesson, because both protect real data.
+- **Analysis.** It read the brief and checked the sample data against every rule with a script. The script found the clashes, the overloaded tutor, the lesson on the closed day, and the cancellations close to the start.
+- **Drafting and building.** It drafted this document, and it wrote the code and the tests.
+- **Scope.** It proposed more than the scope needed, and I cut it back. I chose the feature and the rules, the names, and what to leave out. I also removed code and tests that this document did not require.
 
 ### A suggestion I threw away
 
-The assistant proposed to fill `cancelled_by` in the seed from the export note: "tutor sick" gives `tutor`, any other cancellation gives `family`. I said no.
+The assistant proposed to enforce "no double-booking" in the database from the start. The sample data has two clashes, so the load would fail. To get past that, it also proposed a fourth status, "needs review", for the clashing records. I dropped both.
 
-I was right because `cancelled_by` decides who pays. A family cancellation with less than 4 hours of notice is charged. A guess from free text would look like a real record in that field, and nobody could tell the two apart. The field stays empty on seed rows, and the note stays in the change row where a person can read it. The cost is that `late` is `null` for every seed row.
+I was right for two reasons. First, the tool cannot create or move a lesson, so nothing that runs could break the rule, and the checks would guard nothing. Second, the extra status made a decision that is not ours. It set aside one record of each clash, but nobody knows which one is wrong. One may be a move that someone recorded as a new lesson. The other may be an exam pair that nobody labelled. The receptionist must decide. Now the data loads as it is, and the README lists the clashes.
+
+The cost is that the data model allows the owner's own example until next step 1 is built.
