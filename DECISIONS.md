@@ -88,53 +88,9 @@ SQLite, FastAPI, Python and uv. Dates are `YYYY-MM-DD`. Times are `HH:MM` local 
 
 ### Database
 
-```mermaid
-erDiagram
-    tutor ||--o{ lesson : teaches
-    room ||--o{ lesson : hosts
-    lesson ||--|{ lesson_student : has
-    student ||--o{ lesson_student : joins
-    lesson ||--o{ lesson_change : logs
+![Entity relationship diagram of the six tables](docs/erd.png)
 
-    tutor {
-        text id PK
-        text name
-        text subject
-        text phone
-    }
-    room {
-        text id PK "the seed adds R1 to R6"
-        text name
-    }
-    student {
-        int id PK
-        text name UK
-    }
-    lesson {
-        text id PK "the export id, for example L001"
-        date date
-        time start_time
-        int duration_min "60 or 90"
-        text tutor_id FK
-        text room_id FK
-        int capacity "1 or more, default 1"
-        text status "booked, cancelled, no_show"
-        text note "the export note"
-    }
-    lesson_student {
-        text lesson_id PK, FK
-        int student_id PK, FK
-    }
-    lesson_change {
-        int id PK
-        text lesson_id FK
-        text kind "cancelled, no_show, moved"
-        datetime changed_at "local time, read with +07:00"
-        text cancelled_by "family, tutor, centre"
-        text note
-        json old_values "a move: old date, time, tutor, room"
-    }
-```
+The diagram source is [docs/erd.mmd](docs/erd.mmd).
 
 - `lesson` holds the current state only. A `booked` or `no_show` lesson occupies its room and slot. A `cancelled` lesson occupies nothing.
 - An exam pair is one `lesson` with two `lesson_student` rows.
