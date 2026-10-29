@@ -6,7 +6,8 @@ from app.lessons.model import CancelledBy, ChangeKind, Lesson, LessonChange, Les
 from app.students.schemas import StudentRead
 from app.tutors.schemas import TutorRead
 
-# A family cancellation this close to the start is late. The centre charges for it.
+# A family cancellation with less notice than this is late. The centre charges for it.
+# Exactly this much notice is still free.
 LATE_CANCELLATION_WINDOW = timedelta(hours=4)
 
 
@@ -21,7 +22,7 @@ class ChangeRead(BaseModel):
     @classmethod
     def from_change(cls, change: LessonChange, lesson: Lesson) -> "ChangeRead":
         is_family_cancellation = change.kind is ChangeKind.CANCELLED and change.cancelled_by is CancelledBy.FAMILY
-        late = lesson.starts_at - change.changed_at <= LATE_CANCELLATION_WINDOW if is_family_cancellation else None
+        late = lesson.starts_at - change.changed_at < LATE_CANCELLATION_WINDOW if is_family_cancellation else None
         return cls(
             kind=change.kind,
             changed_at=change.changed_at,

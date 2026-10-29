@@ -116,18 +116,25 @@ def test_a_cancellation_after_the_cutoff_stays_on_the_schedule(client, db):
     assert "L013" in ids(client.get("/schedule/2026-03-05").json())
 
 
-def test_a_family_cancellation_within_4_hours_is_late(client, db):
-    # L018 starts on 2026-03-06 at 09:00.
+def late_of(client, lesson_id: str):
+    lessons = client.get("/schedule/2026-03-06").json()["lessons"]
+    return next(item for item in lessons if item["id"] == lesson_id)["change"]["late"]
+
+
+def test_a_family_cancellation_with_less_than_4_hours_of_notice_is_late(client, db):
+    # L018 starts on 2026-03-06 at 09:00. The notice is 3 hours 59 minutes.
+    cancel_in_db(db, "L018", datetime(2026, 3, 6, 5, 1, tzinfo=VIETNAM), CancelledBy.FAMILY)
+
+    assert late_of(client, "L018") is True
+
+
+def test_a_family_cancellation_with_exactly_4_hours_of_notice_is_free(client, db):
     cancel_in_db(db, "L018", datetime(2026, 3, 6, 5, 0, tzinfo=VIETNAM), CancelledBy.FAMILY)
 
-    lesson = next(item for item in client.get("/schedule/2026-03-06").json()["lessons"] if item["id"] == "L018")
-
-    assert lesson["change"]["late"] is True
+    assert late_of(client, "L018") is False
 
 
-def test_a_family_cancellation_over_4_hours_before_is_not_late(client, db):
+def test_a_family_cancellation_with_more_than_4_hours_of_notice_is_free(client, db):
     cancel_in_db(db, "L018", datetime(2026, 3, 6, 4, 59, tzinfo=VIETNAM), CancelledBy.FAMILY)
 
-    lesson = next(item for item in client.get("/schedule/2026-03-06").json()["lessons"] if item["id"] == "L018")
-
-    assert lesson["change"]["late"] is False
+    assert late_of(client, "L018") is False
