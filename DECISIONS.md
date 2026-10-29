@@ -42,7 +42,8 @@ Questions 1 to 4 go first. Until the owner answers, the assumptions below apply.
 - The receptionist reads and edits. The owner and the tutors only read. The tool does not send WhatsApp messages.
 - Lessons last 60 or 90 minutes and run from 09:00 to 21:30. A student can learn any subject with any tutor.
 - The centre is closed on Monday. The closed weekdays are a setting: a list of weekday names, for example `["monday", "sunday"]`.
-- A lesson has a capacity: 1 for a normal lesson, 2 for an exam pair, more later. The tool identifies a student by name.
+- A lesson has a capacity: 1 for a normal lesson (the brief says one-to-one) and 2 for an exam pair. The schema accepts any capacity of 1 or more, but nothing checks that the students fit it.
+- The export has no student ID, so the tool treats a student's name as unique.
 - Hard rule: a student, a tutor or a room is never in two overlapping lessons.
 - Warnings save a reason. They cover more than 6 lessons for a tutor in a day, and a lesson on a closed day or outside the hours. A pair counts as 1 lesson. A cancelled lesson does not count. A no-show does.
 - A cancelled lesson occupies nothing. The receptionist can mark a no-show only after the start. Charging is out of scope.
